@@ -28,6 +28,9 @@ jobs:
           role-to-assume: arn:aws:iam::010438510645:role/github-eks-role
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region $AWS_REGION | \
@@ -36,14 +39,14 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t $ECR_REPOSITORY .
-          docker tag $ECR_REPOSITORY:latest \
-          010438510645.dkr.ecr.us-east-1.amazonaws.com/$ECR_REPOSITORY:latest
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG \
+          010438510645.dkr.ecr.us-east-1.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Push to ECR
         run: |
           docker push \
-          010438510645.dkr.ecr.us-east-1.amazonaws.com/$ECR_REPOSITORY:latest
+          010438510645.dkr.ecr.us-east-1.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Update kubeconfig
         run: |
@@ -51,7 +54,7 @@ jobs:
           --region $AWS_REGION \
           --name $EKS_CLUSTER
 
-      - name: Deploy to EKS
+      - name: Update Deployment Image
         run: |
-          kubectl apply -f k8s/
-
+          kubectl set image deployment/python-app \
+          python-app=010438510645.dkr.ecr.us-east-1.amazonaws.com/python-app:$IMAGE_TAG
